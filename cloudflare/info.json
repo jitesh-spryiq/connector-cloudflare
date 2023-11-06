@@ -1,0 +1,260 @@
+{
+    "name": "cloudflare",
+    "version": "1.0.0",
+    "label": "Cloudflare",
+    "description": "Cloudflare helps to automatically scan the entire public internet,  including DDoS protection, web application firewall, bot management, encryption, DNS security, access control, and rate limiting, to safeguard websites and online applications from various cyber threats.",
+    "publisher": "spryIQ.co",
+    "icon_small_name": "small.png",
+    "icon_large_name": "large.png",
+    "cs_compatible": true,
+    "cs_approved": false,
+    "category": "Threat Intelligence",
+    "help_online": "https://github.com/jitesh-spryiq/connector-cloudflare/blob/develop/docs/CloudflareConnectorDoc.md",
+    "configuration": {
+        "fields": [
+            {
+                "title": "Server URL",
+                "type": "text",
+                "description": "Specify the URL of the cloudflare server to connect and perform automated operations.",
+                "tooltip": "Specify the URL of the cloudflare server to connect and perform automated operations.",
+                "name": "server_url",
+                "required": true,
+                "visible": true,
+                "editable": true,
+                "value": "",
+                "placeholder": "e.g: https://api.cloudflare.com or api.cloudflare.com"
+            },
+            {
+                "title": "Account ID",
+                "type": "text",
+                "description": "Specify the Account ID to access the endpoint to which you will connect and perform the automated operations.",
+                "tooltip": "Specify the Account ID to access the endpoint to which you will connect and perform the automated operations.",
+                "name": "account_id",
+                "required": true,
+                "visible": true,
+                "editable": true,
+                "value": "",
+                "placeholder": "e.g:7359ebec9f6e6d8370c35b981523cbcc4"
+            },
+            {
+                "title": "Zone ID",
+                "type": "text",
+                "description": "Specify the Zone ID to access the endpoint to which you will connect and perform the automated operations.",
+                "tooltip": "Specify the Zone ID to access the endpoint to which you will connect and perform the automated operations.",
+                "name": "zone_id",
+                "required": true,
+                "visible": true,
+                "editable": true,
+                "value": "",
+                "placeholder": "e.g:7359ebec9f6e6d8370c35b981523cbcc4"
+            },
+            {
+                "title": "Email ID",
+                "type": "email",
+                "description": "Specify the Email ID to access the endpoint to which you will connect and perform the automated operations.",
+                "tooltip": "Specify the Email ID to access the endpoint to which you will connect and perform the automated operations.",
+                "name": "email_id",
+                "required": true,
+                "visible": true,
+                "editable": true,
+                "value": "",
+                "placeholder": "e.g:dummy@gmail.com"
+            },
+            {
+                "title": "Global API Key",
+                "type": "password",
+                "description": "Specify the Global API Key to access the endpoint to which you will connect and perform the automated operations.",
+                "tooltip": "Specify the Global API Key to access the endpoint to which you will connect and perform the automated operations.",
+                "name": "global_api_key",
+                "required": true,
+                "visible": true,
+                "editable": true,
+                "value": "",
+                "placeholder": "e.g:7359ebec9f6e6d8370c35b981523cbcc4"
+            }
+        ]
+    },
+    "operations": [
+        {
+            "title": "Get List Of Block IPs In Firewall Rule List",
+            "operation": "get_list_of_block_ip_in_firewall_rule_list",
+            "description": "Retrieve list of all block ips in firewall rule sets.",
+            "annotation": "get_list_of_block_ip_in_firewall_rule_list",
+            "category": "investigation",
+            "parameters": [],
+            "output_schema": [
+                {
+                    "result": [],
+                    "success": "",
+                    "errors": [],
+                    "messages": [],
+                    "result_info": {
+                    "page": "",
+                    "per_page": "",
+                    "count": "",
+                    "total_count": "",
+                    "total_pages": ""
+                    }
+                }
+
+            ]
+        },
+        {
+            "title": "Get Rule ID By Rule Name",
+            "operation": "get_rule_id_by_rule_name",
+            "description": "Retrieve rule id by passing rule name.",
+            "annotation": "get_rule_id_by_rule_name",
+            "category": "investigation",
+            "parameters": [
+                 {
+                    "title": "Ruleset Name",
+                    "type": "text",
+                    "name": "ruleset_name",
+                    "required": true,
+                    "visible": true,
+                    "editable": true,
+                    "value": "",
+                    "placeholder": "e.g:Cloudflare Managed Log4J Ruleset",
+                    "description": "Specify the ruleset name that you want to retrieve from cloudflare.",
+                    "tooltip": "Specify the ruleset name you want to retrieve from cloudflare."
+                }
+            ],
+            "output_schema": [
+                {
+                    "Rule Name": "",
+                    "Rule ID": ""
+                }
+            ]
+        },
+        {
+            "title": "Get List Firewall Rule List",
+            "operation": "get_list_firewall_rule_list",
+            "description": "Retrieve list of firewall rule sets.",
+            "annotation": "get_list_firewall_rule_list",
+            "category": "investigation",
+            "parameters": [],
+            "output_schema": [
+                {
+                    "result": [
+                        {
+                            "id": "",
+                            "name": "",
+                            "description": "",
+                            "source": "",
+                            "kind": "",
+                            "version": "",
+                            "last_updated": "",
+                            "phase": ""
+                        }
+                    ],
+                    "success": true,
+                    "errors": [],
+                    "messages": []
+                }
+            ]
+        },
+        {
+            "title": "Block IP In Firewall",
+            "operation": "block_ip_in_firewall",
+            "description": "Block IP in Cloudflare WAF.",
+            "annotation": "block_ip_in_firewall",
+            "category": "investigation",
+            "parameters": [
+                {
+                    "title": "Ruleset ID",
+                    "type": "text",
+                    "name": "ruleset_id",
+                    "required": true,
+                    "visible": true,
+                    "editable": true,
+                    "value": "",
+                    "placeholder": "e.g:2dc9957b52af4da6b8f9ca6fcad176b2",
+                    "description": "Specify the ruleset id that you want to retrieve from cloudflare.",
+                    "tooltip": "Specify the ruleset id you want to retrieve from cloudflare."
+                },
+                {
+                    "title": "IP Address",
+                    "type": "text",
+                    "name": "ip_address",
+                    "required": true,
+                    "visible": true,
+                    "editable": true,
+                    "value": "",
+                    "placeholder": "e.g:google.com",
+                    "description": "Specify the ip address that you want to retrieve from cloudflare.",
+                    "tooltip": "Specify the ip address that you want to retrieve from cloudflare."
+                },
+                {
+                    "title": "Description",
+                    "type": "text",
+                    "name": "description",
+                    "required": true,
+                    "visible": true,
+                    "editable": true,
+                    "value": "",
+                    "description": "The description that you want to add to the cloudflare security incident that you want to update in cloudflare."
+                }
+            ],
+            "output_schema": [
+                {
+                    "result": {
+                        "id": "",
+                        "name": "",
+                        "description": "",
+                        "source": "",
+                        "kind": "",
+                        "version": "",
+                        "rules": [
+                            {
+                                "id": "",
+                                "version": "",
+                                "action": "",
+                                "expression": "",
+                                "description": " IP ",
+                                "last_updated": "",
+                                "ref": "",
+                                "enabled": ""
+                            }
+                        ],
+                        "last_updated": "",
+                        "phase": ""
+                    },
+                    "success": "",
+                    "errors": [],
+                    "messages": []
+                }
+            ]
+        },
+        {
+            "title": "Unblock IP In Firewall",
+            "operation": "unblock_ip_in_firewall",
+            "description": "Unblock IP in Cloudflare WAF.",
+            "annotation": "unblock_ip_in_firewall",
+            "category": "investigation",
+            "parameters": [
+                {
+                    "title": "IP Address",
+                    "type": "text",
+                    "name": "ip_address",
+                    "required": true,
+                    "visible": true,
+                    "editable": true,
+                    "value": "",
+                    "placeholder": "e.g:google.com",
+                    "description": "Specify the ip address that you want to retrieve from cloudflare.",
+                    "tooltip": "Specify the ip address that you want to retrieve from cloudflare."
+                }
+            ],
+            "output_schema": [
+                {
+                    "result": {
+                    "id": ""
+                   },
+                  "success": "",
+                  "errors": [],
+                  "messages": []
+                }
+            ]
+        }
+    ]
+}
