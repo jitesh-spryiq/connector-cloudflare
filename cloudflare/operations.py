@@ -1,159 +1,236 @@
-""" Copyright start
-  Copyright (C) 2008 - 2023 Fortinet Inc.
-  All rights reserved.
-  FORTINET CONFIDENTIAL & FORTINET PROPRIETARY SOURCE CODE
-  Copyright end """
+"""
+Copyright start
+MIT License
+Copyright (c) 2024 Fortinet Inc
+Copyright end
+"""
+
 import requests
 from connectors.core.connector import get_logger, ConnectorError
-import json
-logger = get_logger('cloudflare')
+from requests_toolbelt.utils import dump
+
+logger = get_logger('cloudflare-waf')
 
 
-class Cloudflare(object):
+class CloudFlare(object):
 
     def __init__(self, config):
         self.server_url = config.get('server_url').strip()
-        self.account_id = config.get('account_id')
-        self.zone_id = config.get('zone_id')
-        self.email_id = config.get('email_id')
-        self.api_key = config.get('global_api_key')
-        self.headers = {
-                "X-Auth-Email": self.email_id,
-                "X-Auth-Key": self.api_key,
-                "Content-Type": "application/json"
-            }
-        if not self.server_url.startswith('https://'):
-            self.server_url = 'https://{0}/'.format(self.server_url)
+        self.api_key = config.get('api_key')
+        self.headers = {'Authorization':'Bearer {}'.format(self.api_key)}
+        if not self.server_url.startswith('https://') and not self.server_url.startswith('http://'):
+            self.server_url = 'https://' + self.server_url
+        self.verify_ssl = config.get('verify_ssl', False)
 
-    def make_api_call(self, endpoint=None, method='GET', headers=None, health_check=False, data=None):
-        url = self.server_url + endpoint
-        logger.debug('Final url to make rest call is: {0}'.format(url))
+    def make_api_call(self, endpoint=None, method='GET', params=None, headers=None, data=None):
+        service_endpoint = f'{self.server_url}{endpoint}'
+        logger.debug('REST API Service URL: {0}'.format(service_endpoint))
         if headers:
             self.headers.update(headers)
         try:
-            logger.debug('Making a request with {0} method and {1} headers.'.format(method, self.headers))
-            response = requests.request(method, url, headers=self.headers, data=data)
-            if response.status_code in [200]:
-                if health_check:
-                    return response
-                try:
-                    logger.debug(
-                        'Converting the response into JSON format after returning with status code: {0}'.format(
-                            response.status_code))
-                    response_data = response.json()
-                    return {'status': response_data['status'] if 'status' in response_data else 'Success',
-                            'data': response_data}
-                except Exception as e:
-                    response_data = response.content
-                    logger.error('Failed with an error: {0}. The response details are: {1}'.format(e, response_data))
-                    return {'status': 'Failure', 'data': response_data}
+            response = requests.request(method, service_endpoint, headers=self.headers, params=params, json=data, verify=self.verify_ssl)
+            logger.debug('\n{}\n'.format(dump.dump_all(response).decode('utf-8')))
+            logger.error('REST API Response Status Code: {0}'.format(response.status_code))
+            logger.error('REST API Response: {0}'.format(response.text))
+            if response.ok:
+                return response.json()
             else:
-                logger.error('Failed with response {0}'.format(response))
-                raise ConnectorError(
-                    {'status': 'Failure', 'status_code': str(response.status_code), 'response': response})
-        except Exception as e:
-            logger.exception(str(e))
-            raise ConnectorError(str(e))
+                raise ConnectorError(response.text)
+        except requests.exceptions.SSLError:
+            raise ConnectorError('SSL certificate validation failed')
+        except requests.exceptions.ConnectTimeout:
+            raise ConnectorError('The request timed out while trying to connect to the server')
+        except requests.exceptions.ReadTimeout:
+            raise ConnectorError(
+                'The server did not send any data in the allotted amount of time')
+        except requests.exceptions.ConnectionError:
+            raise ConnectorError('Invalid endpoint or credentials')
+        except Exception as err:
+            logger.error(err)
+            raise ConnectorError(str(err))
 
 
-def get_list_of_block_ip_in_firewall_rule_list(config, params):
-    """
-        Retrieve list of all block ips in firewall rule sets.
-        :param config: config
-        :param params: params
-        :return: List of all details,all block ips in firewall rule sets.
-    """
-    obj = Cloudflare(config)
-    endpoint = '/client/v4/zones/{0}/firewall/rules'.format(config.get('zone_id'))
-    return obj.make_api_call(endpoint, 'GET')
+def remove_empty_value(params):
+    params = {k: v for k, v in params.items() if v is not None and v != ''}
+    return params
 
 
-def get_list_firewall_rule_list(config, params):
-    """
-       Retrieve list of firewall rule sets.
-       :param config: config
-       :param params: params
-       :return: List of all details,list of firewall rule sets.
-    """
-    obj = Cloudflare(config)
-    endpoint = '/client/v4/zones/{0}/rulesets'.format(config.get('zone_id'))
-    return obj.make_api_call(endpoint, 'GET')
+def build_rule_payload(params):
+    filter_dict = {}
+    params['action'] = params.pop('action', '').lower().replace(' ', '_')
+    params = remove_empty_value(params)
+    filter_id = params.pop('filter_id', '')
+    filter_expression = params.pop('filter_id', '')
+    if filter_id:
+        filter_dict.update({'id': filter_id})
+    if filter_expression:
+        filter_dict.update({'expression': filter_expression})
+    if filter_dict:
+        params.update({'filter': filter_dict})
+    return params
 
 
-def get_rule_id_by_rule_name(config, params):
-    """
-       Retrieve rule id by passing rule name.
-      :param config: config
-      :param params: params
-      :return: List of all details, rule id by passing rule name.
-    """
-    obj = Cloudflare(config)
-    endpoint = '/client/v4/zones/{0}/rulesets'.format(config.get('zone_id'))
-    response = obj.make_api_call(endpoint, 'GET')
-    if response['status'] == "Success":
-        data = response['data']
-        for rule in data['result']:
-            if rule['name'] == params.get('ruleset_name'):
-                rule_id = rule['id']
-                return {'Rule ID': rule_id, 'Rule Name': params.get('ruleset_name')}
-                break
+def create_firewall_rule(config, params):
+    waf = CloudFlare(config)
+    params = build_rule_payload(params)
+    zone_id = config.get('zone_id')
+    endpoint = f'/client/v4/zones/{zone_id}/firewall/rules'
+    return waf.make_api_call(endpoint, 'POST', data=[params])
 
 
-def block_ip_in_firewall(config, params):
-    """
-       Retrieve block IP in details Cloudflare WAF.
-      :param config: config
-      :param params: params
-      :return: List of all details,block IP in details Cloudflare WAF
-    """
-    obj = Cloudflare(config)
-    endpoint = '/client/v4/zones/{0}/rulesets/{1}/rules'.format(config.get('zone_id'), params.get('ruleset_id'))
-    payload = {
-        "description": f"{params.get('description')}",
-        "expression": f"(ip.src eq {params.get('ip_address')})",
-        "action": "block",
-        "enabled": True
-    }
-    return obj.make_api_call(endpoint, 'POST', data=json.dumps(payload))
+def update_firewall_rule(config, params):
+    waf = CloudFlare(config)
+    params = remove_empty_value(params)
+    params = build_rule_payload(params)
+    zone_id = config.get('zone_id')
+    endpoint = f'/client/v4/zones/{zone_id}/firewall/rules'
+    return waf.make_api_call(endpoint, 'PUT', data=[params])
 
 
-def unblock_ip_in_firewall(config, params):
-    """
-       Retrieve unblock IP in details Cloudflare WAF.
-      :param config: config
-      :param params: params
-      :return: List of all details,unblock IP in details Cloudflare WAF
-    """
-    obj = Cloudflare(config)
-    endpoint = '/client/v4/zones/{0}/firewall/rules'.format(config.get('zone_id'))
-    response = obj.make_api_call(endpoint, 'GET')
-    if response['status'] == "Success":
-        firewall_rules = response['data']
-        rule_id_to_delete = None
-        for rule in firewall_rules['result']:
-            if rule["filter"]["expression"] == f"(ip.src eq {params.get('ip_address')})":
-                rule_id_to_delete = rule["id"]
-                break
-        if rule_id_to_delete is not None:
-            delete_endpoint = '/client/v4/zones/{0}/firewall/rules/{1}'.format(config.get('zone_id'), rule_id_to_delete)
-            return  obj.make_api_call(delete_endpoint, 'DELETE')
+def list_firewall_rules(config, params):
+    waf = CloudFlare(config)
+    params = remove_empty_value(params)
+    params['action'] = params.pop('action', '').lower().replace(' ', '_')
+    zone_id = config.get('zone_id')
+    endpoint = f'/client/v4/zones/{zone_id}/firewall/rules'
+    return waf.make_api_call(endpoint, 'GET', params=params)
+
+
+def delete_firewall_rule(config, params):
+    waf = CloudFlare(config)
+    params = remove_empty_value(params)
+    zone_id = config.get('zone_id')
+    endpoint = f'/client/v4/zones/{zone_id}/firewall/rules'
+    return waf.make_api_call(endpoint, 'DELETE', params=params)
+
+
+def list_filters(config, params):
+    waf = CloudFlare(config)
+    params = remove_empty_value(params)
+    zone_id = config.get('zone_id')
+    endpoint = f'/client/v4/zones/{zone_id}/firewall/filters'
+    return waf.make_api_call(endpoint, 'GET', params=params)
+
+
+def create_filter(config, params):
+    waf = CloudFlare(config)
+    params = remove_empty_value(params)
+    zone_id = config.get('zone_id')
+    endpoint = f'/client/v4/zones/{zone_id}/filters'
+    return waf.make_api_call(endpoint, 'POST', data=[params])
+
+
+def update_filter(config, params):
+    waf = CloudFlare(config)
+    params = remove_empty_value(params)
+    zone_id = config.get('zone_id')
+    endpoint = f'/client/v4/zones/{zone_id}/filters'
+    return waf.make_api_call(endpoint, 'PUT', data=[params])
+
+
+def delete_filter(config, params):
+    waf = CloudFlare(config)
+    params = remove_empty_value(params)
+    zone_id = config.get('zone_id')
+    endpoint = f'/client/v4/zones/{zone_id}/filters'
+    return waf.make_api_call(endpoint, 'DELETE', params=params)
+
+
+def list_zones(config, params):
+    waf = CloudFlare(config)
+    params = remove_empty_value(params)
+    endpoint = f'/client/v4/zones'
+    return waf.make_api_call(endpoint, 'GET', params=params)
+
+
+def get_ip_lists(config, params):
+    waf = CloudFlare(config)
+    params = remove_empty_value(params)
+    account_id = config.get('account_id', '')
+    endpoint = f'/client/v4/accounts/{account_id}/rules/lists'
+    return waf.make_api_call(endpoint, 'GET', params=params)
+
+
+def create_ip_list(config, params):
+    waf = CloudFlare(config)
+    params['kind'] = 'ip'
+    params = remove_empty_value(params)
+    account_id = config.get('account_id', '')
+    endpoint = f'/client/v4/accounts/{account_id}/rules/lists'
+    return waf.make_api_call(endpoint, 'POST', data=params)
+
+
+def delete_ip_list(config, params):
+    waf = CloudFlare(config)
+    params = remove_empty_value(params)
+    account_id = config.get('account_id', '')
+    list_id = params.pop('list_id', '')
+    endpoint = f'/client/v4/accounts/{account_id}/rules/lists/{list_id}'
+    return waf.make_api_call(endpoint, 'DELETE', data=params)
+
+
+def get_ip_list_item(config,params):
+    waf = CloudFlare(config)
+    account_id = config.pop('account_id', '')
+    list_id = params.pop('list_id', '')
+    endpoint = f'/client/v4/accounts/{account_id}/rules/lists/{list_id}/items'
+    return waf.make_api_call(endpoint, 'GET', params=params)
+
+
+def get_list_input(action_input):
+    list_action_inputs = []
+    if isinstance(action_input, str):
+        list_action_inputs = action_input.split(',')
+    if isinstance(action_input, list):
+        return action_input
+    return list_action_inputs
+
+
+def create_ip_items_list(config, params):
+    waf = CloudFlare(config)
+    account_id = config.pop('account_id', '')
+    list_id = params.pop('list_id', '')
+    endpoint = f'/client/v4/accounts/{account_id}/rules/lists/{list_id}/items'
+    items = [{'ip': item} for item in get_list_input(params.get('ip_address'))]
+    return waf.make_api_call(endpoint, 'POST', data=items)
+
+
+def update_ip_list_item(config, params):
+    waf = CloudFlare(config)
+    account_id = config.pop('account_id', '')
+    list_id = params.pop('list_id', '')
+    endpoint = f'/client/v4/accounts/{account_id}/rules/lists/{list_id}/items'
+    items = [{'ip': item} for item in get_list_input(params.get('ip_address'))]
+    return waf.make_api_call(endpoint, 'PUT', data=items)
+
+
+def delete_ip_list_item(config, params):
+    waf = CloudFlare(config)
+    account_id = config.get('account_id', '')
+    list_id = params.pop('list_id', '')
+    endpoint = f'/client/v4/accounts/{account_id}/rules/lists/{list_id}/items'
+    items = [{'id': item} for item in get_list_input(params.get('items_id'))]
+    return waf.make_api_call(endpoint, 'DELETE', data=items)
 
 
 def _check_health(config):
-    try:
-        obj = Cloudflare(config)
-        endpoint = '/client/v4/zones/{0}/healthchecks'.format(config.get('zone_id'))
-        obj.make_api_call(endpoint=endpoint, health_check=True)
-        return True
-    except Exception as err:
-        logger.exception('Health check failed with: {0}'.format(err))
-        raise ConnectorError('Health check failed with: {0}'.format(err))
-
+    return list_zones(config, params={})
 
 operations = {
-    'get_list_of_block_ip_in_firewall_rule_list': get_list_of_block_ip_in_firewall_rule_list,
-    'get_list_firewall_rule_list': get_list_firewall_rule_list,
-    'block_ip_in_firewall': block_ip_in_firewall,
-    'get_rule_id_by_rule_name':get_rule_id_by_rule_name,
-    'unblock_ip_in_firewall': unblock_ip_in_firewall
+    'create_firewall_rule': create_firewall_rule,
+    'update_firewall_rule': update_firewall_rule,
+    'list_firewall_rules': list_firewall_rules,
+    'delete_firewall_rule': delete_firewall_rule,
+    'list_filters': list_filters,
+    'create_filter': create_filter,
+    'update_filter': update_filter,
+    'delete_filter': delete_filter,
+    'list_zones': list_zones,
+    'get_ip_lists': get_ip_lists,
+    'create_ip_list': create_ip_list,
+    'delete_ip_list': delete_ip_list,
+    'get_ip_list_item':get_ip_list_item,
+    'create_ip_items_list': create_ip_items_list,
+    'update_ip_list_item': update_ip_list_item,
+    'delete_ip_list_item': delete_ip_list_item
 }
