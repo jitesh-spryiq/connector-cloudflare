@@ -1,0 +1,18 @@
+#### What's Added
+- Added the following new operations:
+  - Create Firewall Rule
+  - Update Firewall Rule
+  - List Firewall Rules
+  - Delete Firewall Rule
+  - List Filters
+  - Create Filter
+  - Update Filter
+  - Delete Filter
+  - List Zones
+  - Get IP Lists
+  - Create IP List
+  - Delete IP List
+  - Get IP List Item
+  - Create IP Items List
+  - Update IP List Item
+  - Delete IP List Item

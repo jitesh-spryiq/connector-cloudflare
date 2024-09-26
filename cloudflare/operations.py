@@ -7,9 +7,8 @@ Copyright end
 
 import requests
 from connectors.core.connector import get_logger, ConnectorError
-from requests_toolbelt.utils import dump
 
-logger = get_logger('cloudflare-waf')
+logger = get_logger('cloudflare')
 
 
 class CloudFlare(object):
@@ -29,7 +28,6 @@ class CloudFlare(object):
             self.headers.update(headers)
         try:
             response = requests.request(method, service_endpoint, headers=self.headers, params=params, json=data, verify=self.verify_ssl)
-            logger.debug('\n{}\n'.format(dump.dump_all(response).decode('utf-8')))
             logger.error('REST API Response Status Code: {0}'.format(response.status_code))
             logger.error('REST API Response: {0}'.format(response.text))
             if response.ok:
@@ -215,6 +213,7 @@ def delete_ip_list_item(config, params):
 
 def _check_health(config):
     return list_zones(config, params={})
+
 
 operations = {
     'create_firewall_rule': create_firewall_rule,
